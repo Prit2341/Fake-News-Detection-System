@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fake News Detection — ML + MLOps Showcase</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --card:     #1c2128;
+      --border:   #30363d;
+      --accent:   #58a6ff;
+      --green:    #3fb950;
+      --red:      #f85149;
+      --orange:   #d29922;
+      --purple:   #bc8cff;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --radius:   12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .logo {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; color: #fff;
+    }
+    header h1 { font-size: 17px; font-weight: 600; color: var(--text); }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .badge {
+      font-size: 11px; padding: 3px 9px; border-radius: 20px;
+      font-weight: 600; letter-spacing: .3px;
+    }
+    .badge-blue   { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.3); }
+    .badge-green  { background: rgba(63,185,80,.15);  color: var(--green);  border: 1px solid rgba(63,185,80,.3); }
+    .header-badges { display: flex; gap: 8px; align-items: center; }
+    #gpu-badge { display: none; }
+
+    /* ── Nav Tabs ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex; gap: 4px;
+    }
+    .tab {
+      padding: 12px 18px;
+      font-size: 13px; font-weight: 500;
+      color: var(--muted);
+      cursor: pointer; border: none; background: none;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+    }
+    .tab:hover  { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--muted); text-transform: uppercase;
+      letter-spacing: .6px; margin-bottom: 16px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+    /* ── Demo Section ── */
+    .demo-wrapper { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .input-area textarea {
+      width: 100%; height: 220px;
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px; font-size: 14px; resize: vertical;
+      font-family: inherit; line-height: 1.6;
+      transition: border-color .2s;
+    }
+    .input-area textarea:focus {
+      outline: none; border-color: var(--accent);
+    }
+    .input-actions {
+      display: flex; gap: 10px; margin-top: 12px; align-items: center;
+    }
+    .btn {
+      padding: 10px 22px; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; border: none;
+      transition: opacity .2s, transform .1s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-outline {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .char-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+    /* Sample news buttons */
+    .sample-btn {
+      font-size: 11px; padding: 5px 12px; border-radius: 20px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); cursor: pointer; transition: all .2s;
+      white-space: nowrap;
+    }
+    .sample-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .samples { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .samples-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+
+    /* Result panel */
+    .result-panel { position: relative; }
+    .result-empty {
+      height: 100%; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--muted); gap: 10px; min-height: 320px;
+    }
+    .result-empty svg { opacity: .3; }
+    .verdict {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 20px;
+    }
+    .verdict-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; flex-shrink: 0;
+    }
+    .verdict-icon.fake { background: rgba(248,81,73,.15); }
+    .verdict-icon.real { background: rgba(63,185,80,.15); }
+    .verdict-label { font-size: 26px; font-weight: 700; }
+    .verdict-label.fake { color: var(--red); }
+    .verdict-label.real { color: var(--green); }
+    .verdict-conf { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* Model breakdown */
+    .model-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .model-row:last-child { border-bottom: none; }
+    .model-name { font-size: 13px; font-weight: 600; width: 90px; flex-shrink: 0; }
+    .bar-wrap { flex: 1; height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+    .bar-real { background: var(--green); }
+    .bar-fake { background: var(--red); }
+    .model-verdict {
+      font-size: 12px; font-weight: 700; width: 40px;
+      text-align: right; flex-shrink: 0;
+    }
+    .model-verdict.fake { color: var(--red); }
+    .model-verdict.real { color: var(--green); }
+    .prob-labels {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--muted); margin-top: 3px;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      display: none;
+      position: absolute; inset: 0;
+      background: rgba(13,17,23,.85);
+      border-radius: var(--radius);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; z-index: 10;
+    }
+    .loading-overlay.visible { display: flex; }
+
+    /* ── Metric Cards ── */
+    .metric-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .metric-value { font-size: 32px; font-weight: 700; color: var(--text); }
+    .metric-label { font-size: 12px; color: var(--muted); }
+    .metric-sub   { font-size: 11px; color: var(--green); font-weight: 600; }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      display: flex; align-items: stretch; gap: 0;
+      overflow-x: auto; padding-bottom: 8px;
+    }
+    .pipe-step {
+      flex: 1; min-width: 140px; background: var(--card);
+      border: 1px solid var(--border); border-radius: 0;
+      padding: 18px 16px; position: relative;
+    }
+    .pipe-step:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+    .pipe-step:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+    .pipe-step + .pipe-step { border-left: none; }
+    .pipe-arrow {
+      position: absolute; right: -12px; top: 50%;
+      transform: translateY(-50%);
+      width: 22px; height: 22px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: var(--accent); z-index: 2;
+    }
+    .pipe-step:last-child .pipe-arrow { display: none; }
+    .pipe-icon { font-size: 22px; margin-bottom: 8px; }
+    .pipe-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .pipe-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .pipe-tag {
+      display: inline-block; font-size: 10px; padding: 2px 7px;
+      border-radius: 10px; margin-top: 8px; font-weight: 600;
+    }
+    .tag-blue   { background: rgba(88,166,255,.15); color: var(--accent); }
+    .tag-purple { background: rgba(188,140,255,.15); color: var(--purple); }
+    .tag-green  { background: rgba(63,185,80,.15);  color: var(--green); }
+    .tag-orange { background: rgba(210,153,34,.15); color: var(--orange); }
+
+    /* ── Tech Stack ── */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .tech-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .tech-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .tech-name  { font-size: 13px; font-weight: 600; }
+    .tech-role  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Chart container ── */
+    .chart-box { position: relative; height: 220px; }
+
+    /* ── Helpers ── */
+    .section-title {
+      font-size: 20px; font-weight: 700; margin-bottom: 6px;
+    }
+    .section-desc { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+    .row { display: flex; gap: 20px; margin-bottom: 20px; }
+    .col { flex: 1; }
+    hr.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    @media (max-width: 768px) {
+      .demo-wrapper, .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+      nav { padding: 0 16px; overflow-x: auto; }
+      main { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ───────────────────────────────────────────── -->
+<header>
+  <div class="header-left">
+    <div class="logo">FN</div>
+    <div>
+      <h1>Fake News Detection</h1>
+      <p>Multilingual Ensemble · LightGBM + XLM-RoBERTa</p>
+    </div>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-green">99.7% Accuracy</span>
+    <span class="badge badge-blue">AUC 0.9999</span>
+    <span id="gpu-badge" class="badge" style="background:rgba(188,140,255,.15);color:var(--purple);border:1px solid rgba(188,140,255,.3)">GPU</span>
+  </div>
+</header>
+
+<!-- ── Tabs ─────────────────────────────────────────────── -->
+<nav>
+  <button class="tab active" onclick="showTab('demo',this)">Live Demo</button>
+  <button class="tab" onclick="showTab('metrics',this)">Model Performance</button>
+  <button class="tab" onclick="showTab('pipeline',this)">MLOps Pipeline</button>
+  <button class="tab" onclick="showTab('stack',this)">Tech Stack</button>
+</nav>
+
+<!-- ── Main ─────────────────────────────────────────────── -->
+<main>
+
+  <!-- ══ DEMO ══════════════════════════════════════════════ -->
+  <section id="demo" class="section active">
+    <div class="section-title">Live Inference</div>
+    <div class="section-desc">Enter any news article text and see predictions from each model in real time.</div>
+
+    <div class="demo-wrapper">
+
+      <!-- Input -->
+      <div class="input-area">
+        <div class="card" style="padding:20px">
+          <div class="samples-label">Try a sample:</div>
+          <div class="samples">
+            <button class="sample-btn" onclick="setSample('fake1')">Fake — Conspiracy</button>
+            <button class="sample-btn" onclick="setSample('fake2')">Fake — Political</button>
+            <button class="sample-btn" onclick="setSample('real1')">Real — Reuters</button>
+            <button class="sample-btn" onclick="setSample('real2')">Real — Science</button>
+          </div>
+          <textarea id="news-input"
+            placeholder="Paste or type a news article here (min 10 characters)…"
+            oninput="updateChar()"></textarea>
+          <div class="input-actions">
+            <button class="btn btn-primary" onclick="runPredict()">Analyze</button>
+            <button class="btn btn-outline" onclick="clearInput()">Clear</button>
+            <span class="char-count" id="char-count">0 / 5000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-panel">
+        <div class="card" id="result-card" style="min-height:340px;position:relative">
+          <div class="loading-overlay" id="loading">
+            <div class="spinner"></div>
+            <div style="font-size:13px;color:var(--muted)">Running inference…</div>
+          </div>
+
+          <!-- Empty state -->
+          <div class="result-empty" id="result-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5">
+              <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806
+                3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806
+                3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946
+                3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946
+                3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806
+                3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806
+                3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946
+                3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946
+                3.42 3.42 0 013.138-3.138z"/>
+            </svg>
+            <span style="font-size:14px">Awaiting input</span>
+          </div>
+
+          <!-- Result content (hidden until prediction) -->
+          <div id="result-content" style="display:none">
+            <div class="card-title">Ensemble Verdict</div>
+            <div class="verdict" id="verdict-row"></div>
+            <hr class="divider" style="margin:14px 0">
+            <div class="card-title">Model Breakdown</div>
+            <div id="model-rows"></div>
+          </div>
+        </div>
+
+        <!-- Snippet -->
+        <div id="snippet-box" style="display:none;margin-top:12px">
+          <div class="card" style="padding:14px 18px">
+            <div class="card-title" style="margin-bottom:8px">Analyzed text</div>
+            <div id="snippet-text" style="font-size:13px;color:var(--muted);line-height:1.6"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ METRICS ═══════════════════════════════════════════ -->
+  <section id="metrics" class="section">
+    <div class="section-title">Model Performance</div>
+    <div class="section-desc">Evaluated on 8,771 held-out samples (50% real / 50% fake).</div>
+
+    <div class="grid-4" style="margin-bottom:20px" id="metric-cards">
+      <!-- filled by JS -->
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Ensemble vs Individual Models</div>
+        <div class="chart-box">
+          <canvas id="model-compare-chart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Metric Breakdown</div>
+        <div class="chart-box">
+          <canvas id="metric-radar-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px">
+      <div class="card">
+        <div class="card-title">Confusion Matrix Simulation — Ensemble (8,771 samples)</div>
+        <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:2px;max-width:360px;margin-top:8px">
+          <div></div>
+          <div style="text-align:center;font-size:12px;color:var(--muted);padding:6px;font-weight:600">Predicted REAL</div>
+          <div style="text-align:center;font-size:12px;color:var(--muted);padding:6px;font-weight:600">Predicted FAKE</div>
+          <div style="font-size:12px;color:var(--muted);padding:6px;font-weight:600;writing-mode:horizontal-tb">Actual REAL</div>
+          <div id="cm-tn" style="text-align:center;padding:18px;background:rgba(63,185,80,.15);border-radius:8px;font-size:22px;font-weight:700;color:var(--green)"></div>
+          <div id="cm-fp" style="text-align:center;padding:18px;background:rgba(248,81,73,.08);border-radius:8px;font-size:22px;font-weight:700;color:var(--red)"></div>
+          <div style="font-size:12px;color:var(--muted);padding:6px;font-weight:600">Actual FAKE</div>
+          <div id="cm-fn" style="text-align:center;padding:18px;background:rgba(248,81,73,.08);border-radius:8px;font-size:22px;font-weight:700;color:var(--red)"></div>
+          <div id="cm-tp" style="text-align:center;padding:18px;background:rgba(63,185,80,.15);border-radius:8px;font-size:22px;font-weight:700;color:var(--green)"></div>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+          Based on 99.71% accuracy: ~25 errors out of 8,771 samples.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PIPELINE ══════════════════════════════════════════ -->
+  <section id="pipeline" class="section">
+    <div class="section-title">MLOps Pipeline</div>
+    <div class="section-desc">End-to-end pipeline from raw data ingestion to ensemble inference.</div>
+
+    <!-- Pipeline flow -->
+    <div class="card" style="margin-bottom:20px;overflow:hidden">
+      <div class="card-title">Training Pipeline</div>
+      <div class="pipeline">
+        <div class="pipe-step">
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-icon">🗄️</div>
+          <div class="pipe-title">Data Ingestion</div>
+          <div class="pipe-desc">PostgreSQL · 44k articles · real-time RSS + FactCheck APIs</div>
+          <span class="pipe-tag tag-blue">Data</span>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-icon">⚙️</div>
+          <div class="pipe-title">Preprocessing</div>
+          <div class="pipe-desc">Deduplication · class balancing · stratified split</div>
+          <span class="pipe-tag tag-orange">ETL</span>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-icon">🔢</div>
+          <div class="pipe-title">Embeddings</div>
+          <div class="pipe-desc">Sentence-BERT multilingual MiniLM · 512 batch · GPU</div>
+          <span class="pipe-tag tag-purple">Features</span>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-icon">🌲</div>
+          <div class="pipe-title">LightGBM</div>
+          <div class="pipe-desc">500 trees · depth 15 · GPU training · cross-validation</div>
+          <span class="pipe-tag tag-green">Model 1</span>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-icon">🤗</div>
+          <div class="pipe-title">XLM-RoBERTa</div>
+          <div class="pipe-desc">Fine-tuned · grad checkpointing · AMP mixed precision</div>
+          <span class="pipe-tag tag-purple">Model 2</span>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-icon">🎯</div>
+          <div class="pipe-title">Ensemble</div>
+          <div class="pipe-desc">Grid-searched optimal weights · 99.71% accuracy</div>
+          <span class="pipe-tag tag-green">Final</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two columns -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">MLOps Practices</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+          <div class="mlops-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:18px;flex-shrink:0">📦</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">Artifact Management</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Models, embeddings, weights, vectorizers serialized with joblib — reproducible reloads</div>
+            </div>
+          </div>
+          <div class="mlops-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:18px;flex-shrink:0">⚡</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">VRAM-Aware Training</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Gradient checkpointing + AMP + accumulation steps to train RoBERTa on 4GB VRAM</div>
+            </div>
+          </div>
+          <div class="mlops-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:18px;flex-shrink:0">🔁</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">Decoupled Evaluate</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">evaluate.py loads saved artifacts — no retraining needed for evaluation runs</div>
+            </div>
+          </div>
+          <div class="mlops-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:18px;flex-shrink:0">🔌</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">REST API Serving</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">FastAPI + lazy model loading — models cached in memory after first request</div>
+            </div>
+          </div>
+          <div class="mlops-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:18px;flex-shrink:0">🗃️</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">PostgreSQL Data Store</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Structured ingestion with deduplication — articles sourced from 5+ live feeds</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Training Stats</div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">Training samples</span>
+            <span style="font-size:13px;font-weight:600">~44,000</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">Test samples</span>
+            <span style="font-size:13px;font-weight:600">8,771</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">Embedding dim</span>
+            <span style="font-size:13px;font-weight:600">384</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">LightGBM trees</span>
+            <span style="font-size:13px;font-weight:600">500 · depth 15</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">RoBERTa max seq len</span>
+            <span style="font-size:13px;font-weight:600">256 tokens</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">Effective batch size</span>
+            <span style="font-size:13px;font-weight:600">4 × 2 accum = 8</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--muted)">Ensemble weights</span>
+            <span style="font-size:13px;font-weight:600">0.5 / 0.5 (grid search)</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0">
+            <span style="font-size:13px;color:var(--muted)">VRAM target</span>
+            <span style="font-size:13px;font-weight:600">4 GB (RTX 3050 Ti)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ STACK ══════════════════════════════════════════════ -->
+  <section id="stack" class="section">
+    <div class="section-title">Tech Stack</div>
+    <div class="section-desc">Libraries, frameworks, and infrastructure powering this project.</div>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <div>
+        <div class="card-title" style="margin-bottom:12px">ML / Deep Learning</div>
+        <div class="tech-grid">
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(188,140,255,.15)">🤗</div>
+            <div><div class="tech-name">Transformers</div><div class="tech-role">XLM-RoBERTa fine-tuning</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(210,153,34,.15)">🔥</div>
+            <div><div class="tech-name">PyTorch</div><div class="tech-role">AMP · grad checkpointing</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(63,185,80,.15)">🌲</div>
+            <div><div class="tech-name">LightGBM</div><div class="tech-role">GPU-accelerated GBDT</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(88,166,255,.15)">📐</div>
+            <div><div class="tech-name">Sentence-BERT</div><div class="tech-role">Multilingual embeddings</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(248,81,73,.15)">📊</div>
+            <div><div class="tech-name">scikit-learn</div><div class="tech-role">Metrics · CV · splits</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(88,166,255,.15)">🔢</div>
+            <div><div class="tech-name">NumPy / Pandas</div><div class="tech-role">Data processing</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card-title" style="margin-bottom:12px">MLOps / Infrastructure</div>
+        <div class="tech-grid">
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(63,185,80,.15)">⚡</div>
+            <div><div class="tech-name">FastAPI</div><div class="tech-role">REST inference API</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(88,166,255,.15)">🦄</div>
+            <div><div class="tech-name">Uvicorn</div><div class="tech-role">ASGI server · async</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(210,153,34,.15)">🗄️</div>
+            <div><div class="tech-name">PostgreSQL</div><div class="tech-role">Structured data store</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(188,140,255,.15)">📦</div>
+            <div><div class="tech-name">joblib</div><div class="tech-role">Artifact serialization</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(248,81,73,.15)">🐍</div>
+            <div><div class="tech-name">Python 3.11</div><div class="tech-role">Core runtime</div></div>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon" style="background:rgba(63,185,80,.15)">🎮</div>
+            <div><div class="tech-name">CUDA 12.4</div><div class="tech-role">GPU acceleration</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data Sources</div>
+      <div class="grid-4" style="gap:12px">
+        <div style="padding:14px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Kaggle Dataset</div>
+          <div style="font-size:12px;color:var(--muted)">Fake.csv + True.csv — 44k labelled articles (LIAR / ISOT)</div>
+        </div>
+        <div style="padding:14px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">NewsAPI</div>
+          <div style="font-size:12px;color:var(--muted)">Live article fetch via REST — 80+ sources</div>
+        </div>
+        <div style="padding:14px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">RSS Feeds</div>
+          <div style="font-size:12px;color:var(--muted)">Scraped BBC, Reuters, AP, Al Jazeera and others</div>
+        </div>
+        <div style="padding:14px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">FactCheck APIs</div>
+          <div style="font-size:12px;color:var(--muted)">Google FactCheck + Snopes scrapers for labels</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Scripts ───────────────────────────────────────────── -->
+<script>
+// ── Tab switching ─────────────────────────────────────────
+function showTab(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Sample texts ──────────────────────────────────────────
+const SAMPLES = {
+  fake1: `BREAKING: Scientists have discovered that 5G towers are secretly emitting mind-control signals that alter human behavior. Government insiders confirm that major tech companies are working with the deep state to install these towers in schools and hospitals. Thousands of people have reported sudden personality changes after exposure. The globalist agenda to control the population through electromagnetic frequencies is now being exposed by whistleblowers who risk their lives to reveal the truth.`,
+  fake2: `EXCLUSIVE: President secretly signed executive order transferring all national park land to foreign corporations in a midnight deal worth $500 billion. Anonymous sources within the White House confirm that no members of Congress were informed. Citizens will be forcibly removed from their homes within 60 days. The mainstream media is refusing to cover this story because they are part of the same corrupt system.`,
+  real1: `The Federal Reserve on Wednesday held interest rates steady and signaled it still expects to cut borrowing costs by three-quarters of a percentage point by year end, even as policymakers marked up their inflation forecasts and said the path back to their 2% target would take longer than previously anticipated. The central bank's decision to hold rates in the 5.25% to 5.50% range was widely expected by investors and economists.`,
+  real2: `Researchers at MIT have developed a new battery technology that could extend electric vehicle range by up to 40 percent. The solid-state battery design uses a sulfur-based electrolyte that conducts ions more efficiently than current lithium-ion systems. The team published their findings in the journal Nature Energy on Thursday. Commercial production is expected to begin within five years pending additional testing and regulatory approval from safety agencies.`,
+};
+
+function setSample(key) {
+  document.getElementById('news-input').value = SAMPLES[key];
+  updateChar();
+}
+
+function updateChar() {
+  const n = document.getElementById('news-input').value.length;
+  document.getElementById('char-count').textContent = `${n} / 5000`;
+}
+
+function clearInput() {
+  document.getElementById('news-input').value = '';
+  updateChar();
+  document.getElementById('result-empty').style.display = 'flex';
+  document.getElementById('result-content').style.display = 'none';
+  document.getElementById('snippet-box').style.display = 'none';
+}
+
+// ── Prediction ────────────────────────────────────────────
+async function runPredict() {
+  const text = document.getElementById('news-input').value.trim();
+  if (text.length < 10) {
+    alert('Please enter at least 10 characters.');
+    return;
+  }
+
+  // Show loading
+  document.getElementById('loading').classList.add('visible');
+  document.getElementById('result-empty').style.display = 'none';
+  document.getElementById('result-content').style.display = 'none';
+  document.getElementById('snippet-box').style.display = 'none';
+
+  try {
+    const res  = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Server error');
+    }
+    const data = await res.json();
+    renderResult(data);
+  } catch (e) {
+    alert('Error: ' + e.message);
+    document.getElementById('result-empty').style.display = 'flex';
+  } finally {
+    document.getElementById('loading').classList.remove('visible');
+  }
+}
+
+function renderResult(d) {
+  const ens = d.ensemble;
+  const isFake = ens.label === 'FAKE';
+
+  // Verdict
+  document.getElementById('verdict-row').innerHTML = `
+    <div class="verdict-icon ${isFake ? 'fake' : 'real'}">${isFake ? '🚨' : '✅'}</div>
+    <div>
+      <div class="verdict-label ${isFake ? 'fake' : 'real'}">${ens.label}</div>
+      <div class="verdict-conf">${ens.confidence}% confidence · ensemble (LightGBM ${ens.lgbm_weight} + RoBERTa ${ens.roberta_weight})</div>
+    </div>`;
+
+  // Model rows
+  const models = [
+    { name: 'LightGBM', data: d.lgbm },
+    { name: 'RoBERTa',  data: d.roberta },
+    { name: 'Ensemble', data: d.ensemble },
+  ];
+  document.getElementById('model-rows').innerHTML = models.map(m => {
+    const isFakeM = m.data.label === 'FAKE';
+    const fakeW   = m.data.fake_prob;
+    const realW   = m.data.real_prob;
+    return `
+      <div class="model-row">
+        <div class="model-name">${m.name}</div>
+        <div style="flex:1">
+          <div style="display:flex;gap:4px">
+            <div class="bar-wrap" style="flex:${realW}">
+              <div class="bar-fill bar-real" style="width:100%"></div>
+            </div>
+            <div class="bar-wrap" style="flex:${fakeW}">
+              <div class="bar-fill bar-fake" style="width:100%"></div>
+            </div>
+          </div>
+          <div class="prob-labels">
+            <span style="color:var(--green)">Real ${realW}%</span>
+            <span style="color:var(--red)">Fake ${fakeW}%</span>
+          </div>
+        </div>
+        <div class="model-verdict ${isFakeM ? 'fake' : 'real'}">${m.data.label}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('result-content').style.display = 'block';
+
+  // Snippet
+  document.getElementById('snippet-text').textContent = d.text_snippet;
+  document.getElementById('snippet-box').style.display = 'block';
+}
+
+// ── Metrics page ──────────────────────────────────────────
+async function loadMetrics() {
+  try {
+    const res  = await fetch('/metrics');
+    const data = await res.json();
+
+    // Metric cards
+    const defs = [
+      { key: 'Accuracy',   label: 'Accuracy',  sub: 'Ensemble' },
+      { key: 'F1 (macro)', label: 'F1 Macro',  sub: 'Ensemble' },
+      { key: 'Precision',  label: 'Precision', sub: 'Ensemble' },
+      { key: 'AUC-ROC',    label: 'AUC-ROC',   sub: 'Near-perfect' },
+    ];
+    document.getElementById('metric-cards').innerHTML = defs.map(d => `
+      <div class="metric-card">
+        <div class="metric-value">${d.key === 'AUC-ROC' ? (data[d.key]/100).toFixed(4) : data[d.key].toFixed(2) + '%'}</div>
+        <div class="metric-label">${d.label}</div>
+        <div class="metric-sub">▲ ${d.sub}</div>
+      </div>`).join('');
+
+    // Bar chart
+    const barCtx = document.getElementById('model-compare-chart').getContext('2d');
+    new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: ['LightGBM', 'XLM-RoBERTa', 'Ensemble'],
+        datasets: [
+          {
+            label: 'Accuracy (%)',
+            data: [98.92, 99.43, 99.71],
+            backgroundColor: ['rgba(88,166,255,.7)', 'rgba(188,140,255,.7)', 'rgba(63,185,80,.7)'],
+            borderColor:      ['#58a6ff', '#bc8cff', '#3fb950'],
+            borderWidth: 1, borderRadius: 6,
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            min: 98, max: 100,
+            ticks: { color: '#8b949e' },
+            grid:  { color: '#21262d' },
+          },
+          x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+        }
+      }
+    });
+
+    // Radar chart
+    const radCtx = document.getElementById('metric-radar-chart').getContext('2d');
+    new Chart(radCtx, {
+      type: 'radar',
+      data: {
+        labels: ['Accuracy', 'F1', 'Precision', 'Recall', 'AUC-ROC'],
+        datasets: [{
+          label: 'Ensemble',
+          data: [99.71, 99.71, 99.71, 99.71, 99.99],
+          backgroundColor: 'rgba(88,166,255,.15)',
+          borderColor: '#58a6ff',
+          pointBackgroundColor: '#58a6ff',
+          pointRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#8b949e' } } },
+        scales: {
+          r: {
+            min: 99, max: 100,
+            ticks: { display: false },
+            grid:  { color: '#21262d' },
+            pointLabels: { color: '#8b949e', font: { size: 11 } },
+            angleLines: { color: '#21262d' },
+          }
+        }
+      }
+    });
+
+    // Confusion matrix (approximate from 99.71% / 8771 samples)
+    const total = 8771, acc = 0.9971;
+    const correct = Math.round(total * acc);
+    const errors  = total - correct;
+    const half    = Math.round(total / 2);
+    const fn = Math.round(errors / 2), fp = errors - fn;
+    document.getElementById('cm-tn').textContent = (half - fp).toLocaleString();
+    document.getElementById('cm-fp').textContent = fp;
+    document.getElementById('cm-fn').textContent = fn;
+    document.getElementById('cm-tp').textContent = (half - fn).toLocaleString();
+
+  } catch(e) {
+    console.error('Failed to load metrics', e);
+  }
+}
+
+// ── Health check (GPU badge) ──────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch('/health');
+    const d = await r.json();
+    if (d.cuda_available) {
+      const el = document.getElementById('gpu-badge');
+      el.style.display = 'inline';
+      el.textContent = d.gpu ? d.gpu.replace('NVIDIA GeForce ', '') : 'GPU';
+    }
+  } catch(_) {}
+}
+
+// ── Init ──────────────────────────────────────────────────
+checkHealth();
+loadMetrics();
+
+// Allow Enter key in textarea (Shift+Enter = newline, Ctrl+Enter = submit)
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('news-input')?.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') runPredict();
+  });
+});
+</script>
+</body>
+</html>
